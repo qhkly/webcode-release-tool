@@ -1,4 +1,5 @@
 const { useEffect, useMemo, useRef, useState } = React;
+const t = (key, vars) => window.i18n.t(key, vars);
 
 const TYPE_META = {
   docker: { label: "Docker", cls: "docker" },
@@ -13,14 +14,14 @@ const TYPE_META = {
 };
 
 const COMMANDS = {
-  compose: { title: "Docker Compose", action: "composeUp", confirm: "在本机执行 docker compose up -d" },
-  vercel: { title: "发布到 Vercel", action: "vercelDeploy", confirm: "执行 vercel --prod" },
-  cf_workers: { title: "发布到 Cloudflare Workers", action: "cloudflareDeploy", confirm: "执行 wrangler deploy" },
-  cf_pages: { title: "发布到 Cloudflare Pages", action: "cloudflareDeploy", confirm: "执行 wrangler pages deploy" },
-  npm: { title: "npm publish", action: "npmPublish", confirm: "执行 npm publish" },
-  firebase: { title: "发布到 Firebase", action: "firebaseDeploy", confirm: "执行 firebase deploy" },
-  netlify: { title: "发布到 Netlify", action: "netlifyDeploy", confirm: "执行 netlify deploy --prod" },
-  flyio: { title: "发布到 Fly.io", action: "flyioDeploy", confirm: "执行 flyctl deploy" },
+  compose: { title: t('cmd.compose.title'), action: "composeUp", confirm: t('cmd.compose.confirm') },
+  vercel: { title: t('cmd.vercel.title'), action: "vercelDeploy", confirm: t('cmd.vercel.confirm') },
+  cf_workers: { title: t('cmd.cf_workers.title'), action: "cloudflareDeploy", confirm: t('cmd.cf_workers.confirm') },
+  cf_pages: { title: t('cmd.cf_pages.title'), action: "cloudflareDeploy", confirm: t('cmd.cf_pages.confirm') },
+  npm: { title: "npm publish", action: "npmPublish", confirm: t('cmd.npm.confirm') },
+  firebase: { title: t('cmd.firebase.title'), action: "firebaseDeploy", confirm: t('cmd.firebase.confirm') },
+  netlify: { title: t('cmd.netlify.title'), action: "netlifyDeploy", confirm: t('cmd.netlify.confirm') },
+  flyio: { title: t('cmd.flyio.title'), action: "flyioDeploy", confirm: t('cmd.flyio.confirm') },
 };
 
 function nowTime() {
@@ -40,7 +41,7 @@ function actionLabel(type) {
     docker_build: "Docker Build",
     docker_buildx: "Docker Buildx",
     docker_push: "Docker Push",
-    docker_ssh: "SSH 部署",
+    docker_ssh: t('action.docker_ssh_label'),
   };
   return labels[type] || TYPE_META[type]?.label || COMMANDS[type]?.title || type;
 }
@@ -68,7 +69,7 @@ function versionFileLabel(type) {
     tauri_conf: "tauri.conf.json",
     cargo_toml: "Cargo.toml",
     version_file: "VERSION",
-  }[type] || "未检测到版本文件";
+  }[type] || t('version.no_file');
 }
 
 function icon(name) {
@@ -127,9 +128,9 @@ function App() {
     try {
       const found = await Bridge.scanProjects(baseDir);
       setProjects(found);
-      pushLog(`扫描完成: ${found.length} 个可发布项目`, "success");
+      pushLog(t('log.scan_done', { count: found.length }), "success");
     } catch (err) {
-      pushLog(`扫描失败: ${err.message || err}`, "error");
+      pushLog(t('log.scan_fail', { error: err.message || err }), "error");
     } finally {
       setScanning(false);
     }
@@ -149,7 +150,7 @@ function App() {
   async function runAction(project, type, form = {}) {
     const key = `${project.path}:${type}`;
     setRunning((r) => ({ ...r, [key]: true }));
-    pushLog(`开始: ${project.name} / ${actionLabel(type)}`, "info");
+    pushLog(t('log.action_start', { name: project.name, action: actionLabel(type) }), "info");
     try {
       let activeProject = project;
       if (form.bumpType && form.bumpType !== "none") {
@@ -160,7 +161,7 @@ function App() {
           version_file: versionResult.file,
         };
         setProjects((items) => items.map((item) => item.path === project.path ? activeProject : item));
-        pushLog(`${project.name}: v${versionResult.old_version} → v${versionResult.new_version}`, "success");
+        pushLog(t('log.version_bump', { name: project.name, old: versionResult.old_version, new: versionResult.new_version }), "success");
       }
 
       let result;
@@ -191,7 +192,7 @@ function App() {
         const config = COMMANDS[type];
         result = await Bridge[config.action]({ projectPath: activeProject.path });
       }
-      pushLog(`${activeProject.name}: ${result.success ? "完成" : "失败"}`, result.success ? "success" : "error");
+      pushLog(t('log.action_result', { name: activeProject.name, status: result.success ? t('log.done') : t('log.failed') }), result.success ? "success" : "error");
     } catch (err) {
       pushLog(`${project.name}: ${err.message || err}`, "error");
     } finally {
@@ -244,7 +245,7 @@ function App() {
           </div>
         ) : (
           <div className="empty">
-            <div className="empty-title">{scanning ? "正在扫描项目" : "没有匹配的发布目标"}</div>
+            <div className="empty-title">{scanning ? t('empty.scanning') : t('empty.no_match')}</div>
             <div className="empty-sub">{shortPath(settings.base_dir)}</div>
           </div>
         )}
@@ -257,6 +258,7 @@ function App() {
 }
 
 function Toolbar({ settings, scanning, query, setQuery, theme, setTheme, onScan, onSettings }) {
+  const isZh = window.i18n.lang === 'zh-CN';
   return (
     <header className="toolbar">
       <div className="brand">
@@ -267,12 +269,13 @@ function Toolbar({ settings, scanning, query, setQuery, theme, setTheme, onScan,
         </div>
       </div>
       <div className="toolbar-center">
-        <div className="search">{icon("scan")}<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索项目 / 平台 / 包名" /></div>
+        <div className="search">{icon("scan")}<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('search.placeholder')} /></div>
       </div>
       <div className="toolbar-actions">
-        <button className="icon-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="切换主题">{icon(theme === "dark" ? "sun" : "moon")}</button>
-        <button className="icon-button" onClick={onSettings} title="设置">{icon("gear")}</button>
-        <button className="primary-button" onClick={onScan} disabled={scanning}>{icon("scan")}<span>{scanning ? "扫描中" : "扫描项目"}</span></button>
+        <button className="icon-button" onClick={() => window.i18n.setLang(isZh ? 'en-US' : 'zh-CN')} title={t('btn.toggle_lang')}>{isZh ? 'EN' : '中'}</button>
+        <button className="icon-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title={t('btn.toggle_theme')}>{icon(theme === "dark" ? "sun" : "moon")}</button>
+        <button className="icon-button" onClick={onSettings} title={t('btn.settings')}>{icon("gear")}</button>
+        <button className="primary-button" onClick={onScan} disabled={scanning}>{icon("scan")}<span>{scanning ? t('btn.scanning') : t('btn.scan')}</span></button>
       </div>
     </header>
   );
@@ -281,10 +284,10 @@ function Toolbar({ settings, scanning, query, setQuery, theme, setTheme, onScan,
 function Stats({ counts }) {
   return (
     <section className="stats">
-      <div><strong>{counts.projects}</strong><span>项目</span></div>
+      <div><strong>{counts.projects}</strong><span>{t('stats.projects')}</span></div>
       <div><strong>{counts.docker}</strong><span>Docker</span></div>
-      <div><strong>{counts.cloud}</strong><span>云平台</span></div>
-      <div><strong>{counts.packages}</strong><span>npm 包</span></div>
+      <div><strong>{counts.cloud}</strong><span>{t('stats.cloud')}</span></div>
+      <div><strong>{counts.packages}</strong><span>{t('stats.packages')}</span></div>
     </section>
   );
 }
@@ -297,7 +300,7 @@ function ProjectCard({ project, settings, running, onOpenAction }) {
         <div>
           <div className="card-title-line">
             <h2>{project.name}</h2>
-            <span className={`version-badge ${project.version ? "" : "empty"}`}>{project.version ? `v${project.version}` : "无版本"}</span>
+            <span className={`version-badge ${project.version ? "" : "empty"}`}>{project.version ? `v${project.version}` : t('badge.no_version')}</span>
           </div>
           <p>{shortPath(project.path)}</p>
         </div>
@@ -307,9 +310,9 @@ function ProjectCard({ project, settings, running, onOpenAction }) {
         {project.deploy_types.map((type) => <span key={type} className={`badge ${TYPE_META[type]?.cls || ""}`}>{TYPE_META[type]?.label || type}</span>)}
       </div>
       <div className="details">
-        {project.npm_name && <span>包名 <b>{project.npm_name}</b></span>}
-        {project.version_file_type && <span>版本 <b>{versionFileLabel(project.version_file_type)}</b></span>}
-        {project.dockerfile_path && <span>镜像 <b>{project.suggested_image}</b></span>}
+        {project.npm_name && <span>{t('detail.package')} <b>{project.npm_name}</b></span>}
+        {project.version_file_type && <span>{t('detail.version')} <b>{versionFileLabel(project.version_file_type)}</b></span>}
+        {project.dockerfile_path && <span>{t('detail.image')} <b>{project.suggested_image}</b></span>}
         {project.wrangler_type && <span>Wrangler <b>{project.wrangler_type}</b></span>}
       </div>
       <div className="actions">
@@ -318,17 +321,17 @@ function ProjectCard({ project, settings, running, onOpenAction }) {
             <button onClick={() => onOpenAction("docker_build")}>Build</button>
             <button onClick={() => onOpenAction("docker_buildx")}>Buildx</button>
             <button onClick={() => onOpenAction("docker_push")}>Push</button>
-            <button onClick={() => onOpenAction("docker_ssh")} disabled={!settings.ssh_hosts.length}>SSH部署</button>
+            <button onClick={() => onOpenAction("docker_ssh")} disabled={!settings.ssh_hosts.length}>{t('btn.ssh_deploy')}</button>
           </div>
         )}
         {project.deploy_types.includes("compose") && <button onClick={() => onOpenAction("compose")}>Compose Up</button>}
-        {project.deploy_types.includes("vercel") && <button onClick={() => onOpenAction("vercel")}>发布到 Vercel</button>}
-        {project.deploy_types.includes("cf_workers") && <button onClick={() => onOpenAction("cf_workers")}>发布到 Cloudflare</button>}
-        {project.deploy_types.includes("cf_pages") && <button onClick={() => onOpenAction("cf_pages")}>发布到 Cloudflare</button>}
+        {project.deploy_types.includes("vercel") && <button onClick={() => onOpenAction("vercel")}>{t('btn.publish_vercel')}</button>}
+        {project.deploy_types.includes("cf_workers") && <button onClick={() => onOpenAction("cf_workers")}>{t('btn.publish_cloudflare')}</button>}
+        {project.deploy_types.includes("cf_pages") && <button onClick={() => onOpenAction("cf_pages")}>{t('btn.publish_cloudflare')}</button>}
         {project.deploy_types.includes("npm") && <button onClick={() => onOpenAction("npm")}>npm publish</button>}
-        {project.deploy_types.includes("firebase") && <button onClick={() => onOpenAction("firebase")}>发布到 Firebase</button>}
-        {project.deploy_types.includes("netlify") && <button onClick={() => onOpenAction("netlify")}>发布到 Netlify</button>}
-        {project.deploy_types.includes("flyio") && <button onClick={() => onOpenAction("flyio")}>发布到 Fly.io</button>}
+        {project.deploy_types.includes("firebase") && <button onClick={() => onOpenAction("firebase")}>{t('btn.publish_firebase')}</button>}
+        {project.deploy_types.includes("netlify") && <button onClick={() => onOpenAction("netlify")}>{t('btn.publish_netlify')}</button>}
+        {project.deploy_types.includes("flyio") && <button onClick={() => onOpenAction("flyio")}>{t('btn.publish_flyio')}</button>}
       </div>
     </article>
   );
@@ -350,7 +353,7 @@ function ActionModal({ modal, settings, onClose, onRun }) {
     docker_build: "Docker Build",
     docker_buildx: "Docker Buildx",
     docker_push: "Docker Push",
-    docker_ssh: "SSH 部署 Docker 镜像",
+    docker_ssh: t('action.docker_ssh'),
   }[type] || COMMANDS[type]?.title;
 
   function submit() {
@@ -372,32 +375,32 @@ function ActionModal({ modal, settings, onClose, onRun }) {
   }
 
   return (
-    <Modal title={`发布 ${project.name}`} onClose={onClose} footer={<><button className="secondary-button" onClick={onClose}>取消</button><button className="primary-button" onClick={submit} disabled={type === "docker_ssh" && !host}>{icon("play")}<span>确认发布</span></button></>}>
+    <Modal title={t('modal.publish_title', { name: project.name })} onClose={onClose} footer={<><button className="secondary-button" onClick={onClose}>{t('modal.btn_cancel')}</button><button className="primary-button" onClick={submit} disabled={type === "docker_ssh" && !host}>{icon("play")}<span>{t('modal.btn_confirm')}</span></button></>}>
       <div className="modal-project">{title}<span>{shortPath(project.path)}</span></div>
       <VersionBumpOptions project={project} bumpType={bumpType} setBumpType={setBumpType} />
       {isDockerConfig ? (
         <div className="form-grid">
           {(type === "docker_build" || type === "docker_buildx") && (
             <>
-              <Field label="镜像名"><input value={imageName} onChange={(e) => setImageName(e.target.value)} /></Field>
-              <Field label="Tag"><input value={tag} onChange={(e) => setTag(e.target.value)} /></Field>
+              <Field label={t('modal.field.image_name')}><input value={imageName} onChange={(e) => setImageName(e.target.value)} /></Field>
+              <Field label={t('modal.field.tag')}><input value={tag} onChange={(e) => setTag(e.target.value)} /></Field>
             </>
           )}
-          {(type === "docker_push" || type === "docker_ssh") && <Field label="完整镜像"><input value={image} onChange={(e) => setImage(e.target.value)} /></Field>}
+          {(type === "docker_push" || type === "docker_ssh") && <Field label={t('modal.field.full_image')}><input value={image} onChange={(e) => setImage(e.target.value)} /></Field>}
           {type === "docker_buildx" && (
             <>
-              <Field label="平台"><input value={platforms} onChange={(e) => setPlatforms(e.target.value)} /></Field>
-              <label className="check"><input type="checkbox" checked={pushFlag} onChange={(e) => setPushFlag(e.target.checked)} /> 构建后推送</label>
+              <Field label={t('modal.field.platform')}><input value={platforms} onChange={(e) => setPlatforms(e.target.value)} /></Field>
+              <label className="check"><input type="checkbox" checked={pushFlag} onChange={(e) => setPushFlag(e.target.checked)} /> {t('modal.field.push_after_build')}</label>
             </>
           )}
           {type === "docker_ssh" && (
             <>
-              <Field label="SSH 主机">
+              <Field label={t('modal.field.ssh_host')}>
                 <select value={hostName} onChange={(e) => setHostName(e.target.value)}>
                   {settings.ssh_hosts.map((h) => <option key={h.name} value={h.name}>{h.name} · {h.user}@{h.host}:{h.port}</option>)}
                 </select>
               </Field>
-              {project.has_compose && <label className="check"><input type="checkbox" checked={runCompose} onChange={(e) => setRunCompose(e.target.checked)} /> 同步 compose 并执行 docker compose up -d</label>}
+              {project.has_compose && <label className="check"><input type="checkbox" checked={runCompose} onChange={(e) => setRunCompose(e.target.checked)} /> {t('modal.field.sync_compose')}</label>}
             </>
           )}
         </div>
@@ -410,17 +413,17 @@ function ActionModal({ modal, settings, onClose, onRun }) {
 
 function VersionBumpOptions({ project, bumpType, setBumpType }) {
   const options = [
-    { id: "patch", label: "Patch", hint: "推荐" },
+    { id: "patch", label: "Patch", hint: t('version.recommended') },
     { id: "minor", label: "Minor" },
     { id: "major", label: "Major" },
-    { id: "none", label: "不修改版本" },
+    { id: "none", label: t('version.no_change') },
   ];
   return (
     <section className="version-box">
       <div className="version-box-head">
-        <span>版本管理</span>
+        <span>{t('version.title')}</span>
         <b className={project.version ? "" : "empty"}>
-          {project.version ? `当前版本 v${project.version}` : "未检测到版本"}
+          {project.version ? t('version.current', { version: project.version }) : t('version.not_detected')}
         </b>
       </div>
       <div className="version-file-hint">{versionFileLabel(project.version_file_type)}</div>
@@ -462,14 +465,14 @@ function SettingsModal({ settings, onClose, onSave }) {
   }
 
   return (
-    <Modal title="设置" onClose={onClose} wide footer={<><button className="secondary-button" onClick={onClose}>取消</button><button className="primary-button" onClick={() => onSave({ base_dir: baseDir, ssh_hosts: hosts })}>{icon("upload")}<span>保存</span></button></>}>
+    <Modal title={t('settings.title')} onClose={onClose} wide footer={<><button className="secondary-button" onClick={onClose}>{t('modal.btn_cancel')}</button><button className="primary-button" onClick={() => onSave({ base_dir: baseDir, ssh_hosts: hosts })}>{icon("upload")}<span>{t('settings.btn_save')}</span></button></>}>
       <div className="form-stack">
-        <Field label="项目根目录"><input value={baseDir} onChange={(e) => setBaseDir(e.target.value)} /></Field>
-        <div className="settings-head"><span>SSH 主机</span><button className="secondary-button small" onClick={addHost}>{icon("plus")}<span>添加</span></button></div>
+        <Field label={t('settings.base_dir')}><input value={baseDir} onChange={(e) => setBaseDir(e.target.value)} /></Field>
+        <div className="settings-head"><span>{t('settings.ssh_hosts')}</span><button className="secondary-button small" onClick={addHost}>{icon("plus")}<span>{t('settings.btn_add')}</span></button></div>
         <div className="host-list">
           {hosts.map((host, index) => (
             <div className="host-row" key={index}>
-              <input placeholder="名称" value={host.name} onChange={(e) => updateHost(index, { name: e.target.value })} />
+              <input placeholder={t('settings.ph.name')} value={host.name} onChange={(e) => updateHost(index, { name: e.target.value })} />
               <input placeholder="host" value={host.host} onChange={(e) => updateHost(index, { host: e.target.value })} />
               <input placeholder="user" value={host.user} onChange={(e) => updateHost(index, { user: e.target.value })} />
               <input placeholder="port" type="number" value={host.port} onChange={(e) => updateHost(index, { port: Number(e.target.value) || 22 })} />
@@ -500,14 +503,14 @@ function Modal({ title, children, footer, onClose, wide }) {
 }
 
 function LogPanel({ logs, open, setOpen, onClear, logRef }) {
-  const last = logs[logs.length - 1] || { ts: "--:--:--", message: "暂无日志", level: "info" };
+  const last = logs[logs.length - 1] || { ts: "--:--:--", message: t('log.no_logs'), level: "info" };
   return (
     <section className={`log-panel ${open ? "open" : ""}`}>
       <header onClick={() => setOpen(!open)}>
         <div className="log-title">
           {icon("terminal")}
-          <span>操作日志</span>
-          <b>{logs.length} 条</b>
+          <span>{t('log.title')}</span>
+          <b>{t('log.count', { count: logs.length })}</b>
         </div>
         {!open && (
           <div className={`log-recent ${last.level}`}>
@@ -516,8 +519,8 @@ function LogPanel({ logs, open, setOpen, onClear, logRef }) {
           </div>
         )}
         <div className="log-tools">
-          <button className="log-toggle" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>{open ? "收起" : "展开"}</button>
-          {open && <button className="log-toggle" onClick={(e) => { e.stopPropagation(); onClear(); }}>清空</button>}
+          <button className="log-toggle" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>{open ? t('log.collapse') : t('log.expand')}</button>
+          {open && <button className="log-toggle" onClick={(e) => { e.stopPropagation(); onClear(); }}>{t('log.clear')}</button>}
         </div>
       </header>
       {open && (
